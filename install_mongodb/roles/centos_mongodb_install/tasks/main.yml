@@ -1,0 +1,126 @@
+---
+# tasks file for centos_mongodb_install
+- name: Print remote host IP address
+  debug:
+    # 获取 ansible_facts中的属性时，不需要加上 ansible_ 前缀
+    msg: "Remote host IP address: {{ ansible_host }},  Run User: {{ ansible_facts['user_id'] }}"
+
+- name: Print remote host operating system information
+  debug:
+    msg: "Remote host operating system: {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }}"
+
+- name: Check if running as root
+  fail:
+    msg: "This role must be run as root user"
+  when: ansible_facts['user_id'] != 'root'
+
+- name: 输出变量值
+  debug:
+    msg: "mongo_install_path: {{ mongo_install_path }}, mongo_replica_set_name: {{ mongo_replica_set_name }}, mongo_port: {{ mongo_port }}"
+
+- name: 检查系统是否已安装MongoDB
+  shell: "{{ mongo_install_path }}/mongodb/bin/mongod --version"
+  register: mongo_installed
+  ignore_errors: yes
+
+- name: 判断是否存在mongo安装目录，不存在就创建
+  file:
+    path: "{{ mongo_install_path }}"
+    state: directory
+  when: mongo_installed.rc != 0  # 只有当mongo未安装时执行
+
+- name: mongo install
+  shell:
+    cmd: |
+      wget https://fastdl.mongodb.org/linux/mongodb-linux-x86_64-rhel80-{{ mongo_version }}.tgz
+      tar -zxvf mongodb-linux-x86_64-rhel80-{{ mongo_version }}.tgz
+      ln -s mongodb-linux-x86_64-rhel80-{{ mongo_version }} mongodb
+      mkdir -p {{ mongo_directory }}/data {{ mongo_directory }}/log
+    chdir: "{{ mongo_install_path }}"
+  when: mongo_installed.rc != 0
+
+- name: 上传mongo配置文件
+  template:
+    src: "mongo.conf"
+    dest: "{{ mongo_directory }}/mongo.conf"
+    force: true # 强制覆盖
+    backup: true # 覆盖前备份
+  when: mongo_installed.rc != 0
+
+- name: 上传mongo复制集keyFile
+  copy:
+    src: "mongo.key"
+    dest: "{{ mongo_directory }}/mongo.key"
+    mode: 0600
+  when: mongo_installed.rc != 0
+
+- name: 检查mongo依赖的openssl库文件是否存在
+  stat:
+    path: /usr/lib64/libcrypto.so.1.1
+  register: file_stat
+
+- name: 判断是否安装了gcc
+  shell: rpm -q gcc
+  register: gcc_status
+  ignore_errors: yes
+
+- name: 安装gcc
+  shell: yum install gcc -y
+  when: gcc_status.rc != 0
+
+- name: 判断是否安装了perl-devel
+  shell: rpm -q perl-devel
+  register: perl_status
+  ignore_errors: yes
+
+- name: 安装perl-devel
+  shell: yum install perl-FindBin perl-devel perl-Pod-Html -y
+  when: perl_status.rc != 0
+
+- name: mongo依赖的openssl库文件不存在则需要安装
+  shell:
+    cmd: |
+      wget  https://www.openssl.org/source/openssl-1.1.1w.tar.gz
+      tar -zxvf openssl-1.1.1w.tar.gz
+      cd openssl-1.1.1w
+      ./config
+      make && make install
+      ln -s /usr/local/lib64/libcrypto.so.1.1 /usr/lib64/libcrypto.so.1.1
+      ln -s /usr/local/lib64/libssl.so.1.1 /usr/lib64/libssl.so.1.1
+    chdir: "{{ mongo_install_path }}"
+  when: not file_stat.stat.exists
+
+- name: 检查系统是否已启动mongo
+  shell: ps aux | grep mongo | grep -v grep
+  register: mongo_status
+  ignore_errors: yes
+
+- name: 检查是否需要启动mongo
+  shell: echo "start mongo"
+  when: mongo_status.rc != 0
+  notify:
+    - mongo start
+
+- name: 检查系统是否已安装MongoShell
+  shell: "{{ mongo_install_path }}/mongosh/bin/mongosh --version"
+  register: mongosh_installed
+  ignore_errors: yes
+
+- name: mongosh install
+  shell:
+    cmd: |
+      wget https://downloads.mongodb.com/compass/mongosh-{{ mongosh_version }}-linux-x64-openssl11.tgz
+      tar -zxvf mongosh-{{ mongosh_version }}-linux-x64-openssl11.tgz
+      ln -s mongosh-{{ mongosh_version }}-linux-x64-openssl11 mongosh
+    chdir: "{{ mongo_install_path }}"
+  when: mongosh_installed.rc != 0
+
+- name: 设置环境变量
+  lineinfile:
+    path: /etc/profile
+    line: "{{ item }}"
+    state: present
+  loop:
+    - "export MONGODB_HOME={{ mongo_install_path }}/mongodb"
+    - "export MONGODB_SHELL_HOME={{ mongo_install_path }}/mongosh"
+    - "PATH=$PATH:$MONGODB_HOME/bin:$MONGODB_SHELL_HOME/bin"
