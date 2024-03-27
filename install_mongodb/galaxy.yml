@@ -8,7 +8,7 @@ namespace: hanqunfeng
 name: install_mongodb
 
 # The version of the collection. Must be compatible with semantic versioning
-version: 1.0.0
+version: 1.0.1
 
 # The path to the Markdown (.md) readme file. This path is relative to the root of the collection
 readme: README.md
@@ -45,15 +45,15 @@ tags:
 dependencies: {}
 
 # The URL of the originating SCM repository
-repository: https://github.com/hanqunfeng/install_mongodb_collection
+repository: https://github.com/hanqunfeng/ansible_collections/tree/main/install_mongodb
 # The URL to any online docs
-documentation: https://github.com/hanqunfeng/install_mongodb_collection
+documentation: https://github.com/hanqunfeng/ansible_collections/tree/main/install_mongodb
 
 # The URL to the homepage of the collection/project
-homepage: https://github.com/hanqunfeng/install_mongodb_collection
+homepage: https://github.com/hanqunfeng/ansible_collections/tree/main/install_mongodb
 
 # The URL to the collection issue tracker
-issues: https://github.com/hanqunfeng/install_mongodb_collection/issue/tracker
+issues: https://github.com/hanqunfeng/ansible_collections/issues
 
 # A list of file glob-like patterns used to filter any files or directories that should not be included in the build
 # artifact. A pattern is matched from the relative path of the file or directory of the collection directory. This
